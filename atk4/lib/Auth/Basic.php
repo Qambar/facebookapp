@@ -66,6 +66,10 @@ class Auth_Basic extends AbstractController {
     function allow($user,$pass=null){
         // creates fictional model to allow specified user and password
         // TODO: test this
+        if($this->model){
+            $this->model->table[]=array('email'=>$user,'password'=>$pass);
+            return $this;
+        }
         $m=$this->add('Model')
             ->setSource('Array',array(is_array($user)?$user:array('email'=>$user,'password'=>$pass)));
         $m->id_field='email';
@@ -83,6 +87,7 @@ class Auth_Basic extends AbstractController {
             if($this->recall('class',false)==get_class($this->model)){
                 $this->debug("Loading model from cache");
                 $this->model->set($this->info);
+                $this->model->dirty=array();
                 $this->model->id=$this->recall('id',null);
             }else{
                 // Class changed, re-fetch data from database
@@ -165,7 +170,7 @@ class Auth_Basic extends AbstractController {
 	}
     /** Manually encrypt password */
 	function encryptPassword($password,$salt=null){
-        if(is_callable($this->password_encryption)){
+        if(!is_string($this->password_encryption) && is_callable($this->password_encryption)){
             $e=$this->password_encryption;
             return $e($password,$salt);
         }
@@ -242,12 +247,12 @@ class Auth_Basic extends AbstractController {
 		return $this->model->loaded();
 	}
     function verifyCredintials($user,$password){
-        return $this->verifyCredentials($user,$password);
+        throw $this->exceptoin('please use verifyCredentials (not verifyCredinteals)');
     }
     /** This function verifies username and password. Password must be supplied in plain text. Does not affect currently 
      * logged in user */
 	function verifyCredentials($user,$password){
-        if($this->model->hasMethod('verifyCredentials'))return $this->model->verifyCredentials($user,$passord);
+        if($this->model->hasMethod('verifyCredentials'))return $this->model->verifyCredentials($user,$password);
         if(!$this->model->hasElement($this->password_field)){
             $this->model->addField($this->password_field);
         }
@@ -356,8 +361,15 @@ class Auth_Basic extends AbstractController {
      * add template/default/page/login.html */
 	function createForm($page){
 		$form=$page->add('Form');
-		$form->addField('Line','username','E-mail');
-		$form->addField('Password','password','Password');
+
+        $email=$this->model->hasField($this->login_field);
+        $email=$email?$email->caption:'E-mail';
+
+        $password=$this->model->hasField($this->password_field);
+        $password=$password?$password->caption:'Password';
+
+		$form->addField('Line','username',$email);
+		$form->addField('Password','password',$password);
 		$form->addSubmit('Login');
 
         return $form;

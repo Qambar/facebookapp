@@ -1,25 +1,25 @@
 <?php
+/**
+ * Connects regular form with a model and imports some fields. It also
+ * binds action on form->update(), which will now force model to be updated.
+ *
+ * In most cases the following use is sufficient
+ * $form->setModel('SomeModel');
+ *
+ * If you want to import fields from multiple models, you can use this:
+ *  $ctl = $form->importFields($model,array('name','surname');
+ *
+ * and if you want to use your own class based on this one, syntax is:
+ *  $ctl = $form->add('Controller_MVCForm_Derived')->importFields($model,array('name','surname'));
+ * 
+ *
+ * You can subsequently call importField() to add additional fields such as:
+ *
+ *  $form_field = $ctl->importField('age');
+ *
+ * which will return newly added form field.
+ */
 class Controller_MVCForm extends AbstractController {
-    /**
-     * Connects regular form with a model and imports some fields. It also
-     * binds action on form->update(), which will now force model to be updated.
-     *
-     * In most cases the following use is sufficient
-     * $form->setModel('SomeModel');
-     *
-     * If you want to import fields from multiple models, you can use this:
-     *  $ctl = $form->importFields($model,array('name','surname');
-     *
-     * and if you want to use your own class based on this one, syntax is:
-     *  $ctl = $form->add('Controller_MVCForm_Derived')->importFields($model,array('name','surname'));
-     * 
-     *
-     * You can subsequently call importField() to add additional fields such as:
-     *
-     *  $form_field = $ctl->importField('age');
-     *
-     * which will return newly added form field.
-     */
 
     public $model=null;
     public $form=null;
@@ -38,9 +38,9 @@ class Controller_MVCForm extends AbstractController {
         'daytime'=>'timepickr',
         'boolean'=>'checkbox',
         'reference'=>'readonly',
-        'reference_id'=>'reference',
+        'reference_id'=>'dropdown',
         'password'=>'password',
-        'list'=>'reference',
+        'list'=>'dropdown',
         'radio'=>'Radio',
         'readonly'=>'readonly',
         'image'=>'image',
@@ -58,7 +58,7 @@ class Controller_MVCForm extends AbstractController {
 
         if($fields===false)return;
 
-        if(!$fields)$fields='editable';
+        if(!$fields || $fields===undefined)$fields='editable';
         if(!is_array($fields))$fields=$model->getActualFields($fields);
         foreach($fields as $field){
             $this->importField($field);
@@ -99,9 +99,6 @@ class Controller_MVCForm extends AbstractController {
             list($form_field->false_value,$junk)=each($field->listData);
         }elseif($field->listData()){
             $a=$field->listData();
-            if(!$field->mandatory()){
-                $a=array(null=>'')+$a;
-            }
             $form_field->setValueList($a);
         } else {
             if ($msg=$field->mandatory()){
@@ -113,6 +110,7 @@ class Controller_MVCForm extends AbstractController {
         if($field->theModel){
             $form_field->setModel($field->theModel);
         }
+        if($form_field instanceof Form_Field_ValueList)$form_field->setEmptyText($field->emptyText());
 
         return $form_field;
     }
@@ -149,6 +147,6 @@ class Controller_MVCForm extends AbstractController {
     }
     function update($form){
         $models=$this->getFields();
-        foreach($models as $model)$model->update();
+        foreach($models as $model)$model->save();
     }
 }

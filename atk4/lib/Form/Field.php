@@ -116,11 +116,21 @@ abstract class Form_Field extends AbstractView {
         return $this;
     }
     function beforeField(){
+		if(!$this->template->hasTag('after_input')){
+			$el=$this->owner->add('HtmlElement');
+			$this->owner->add('Order')->move($el,'before',$this)->now();
+			return $el;
+		}
         if(!$this->button_prepend)return $this->button_prepend=$this
             ->add('HtmlElement',null,'before_input')->addClass('input-cell');
         return $this->button_prepend;
     }
     function afterField(){
+		if(!$this->template->hasTag('after_input')){
+			$el=$this->owner->add('HtmlElement');
+			$this->owner->add('Order')->move($el,'after',$this)->now();
+			return $el;
+		}
         if(!$this->button_append)return $this->button_append=$this
             ->add('HtmlElement',null,'after_input')->addClass('input-cell');
         return $this->button_append;
@@ -145,6 +155,14 @@ abstract class Form_Field extends AbstractView {
 		$this->attr[$property]=$value;
 		return $this;
 	}
+	function addClass($class){
+		$this->attr['class'].=' '.$class;
+		return $this;
+	}
+	function setClass($class){
+		$this->attr['class']=$class;
+		return $this;
+	}
 	function setAttr($property,$value='true'){
 		return $this->setProperty($property,$value);
 	}
@@ -152,6 +170,7 @@ abstract class Form_Field extends AbstractView {
 		/* Adds a hint after this field. Thes will call Field_Hint->set()
 		   with same arguments you called this funciton.
 		 */
+		if(!$this->template->hasTag('after_field'))return $this;
 		$hint=$this->add('Form_Hint',null,'after_field');
 		call_user_func_array(array($hint,'set'), func_get_args());
 		return $this;
@@ -417,7 +436,7 @@ class Form_Field_Checkbox extends Form_Field {
 						'value'=>$this->true_value,
 						'checked'=>(boolean)($this->true_value==$this->value)
 					     ),$attr
-					)).' &ndash; '.$label;
+					)).$label;
 	}
 	function loadPOST(){
 		if(isset($_POST[$this->name])){
@@ -452,7 +471,7 @@ class Form_Field_Hidden extends Form_Field {
 	}
 	function render(){
         if($this->owner == $this->form){
-            $this->form->template_chunks['form']->append('Content',$this->getInput());
+            $this->form->template_chunks['form']->appendHTML('Content',$this->getInput());
         }else $this->output($this->getInput());
 	}
 }
@@ -528,7 +547,7 @@ class Form_Field_Text extends Form_Field {
 		parent::init();
 	}
 	function setFieldHint($text){
-		return parent::setFieldHint('<br/>'.$text);
+		return parent::setFieldHint($text);
 	}
 	function getInput($attr=array()){
 
@@ -554,212 +573,3 @@ class Form_Field_Money extends Form_Field_Line {
 	}
 }
 
-// The following clases operates with predefined value lists.
-// User is picking one or several options
-class Form_Field_ValueList extends Form_Field {
-	/*
-	 * This is abstract class. Use this as a base for all the controls
-	 * which operate with predefined values such as dropdowns, checklists
-	 * etc
-	 */
-	public $value_list=array(
-			0=>'No available options #1',
-			1=>'No available options #2',
-			2=>'No available options #3'
-			);
-    public $empty_text='';
-    function setModel($m){
-        $ret=parent::setModel($m);
-
-        $this->setValueList(array('foo','bar'));
-        return $ret;
-    }
-    /** Default value which is displayed on a null-value option. Set to "Select.." or "Pick one.." */
-    function setEmptyText($empty_text){
-        $this->empty_text=$empty_text;
-        return $this;
-    }
-	function getValueList(){
-
-        if($this->model){
-            $title=$this->model->getTitleField();
-            $id=$this->model->id_field;
-            if ($this->empty_text){
-                $res=array(''=>$this->empty_text);
-            } else {
-                $res = array();
-            }
-			foreach($this->model as $row){
-				$res[$row[$id]]=$row[$title];
-			}
-			return $this->value_list=$res;
-		}
-
-        if($this->empty_text && isset($this->value_list[''])){
-            $this->value_list['']=$this->empty_text;
-        }
-		return $this->value_list;
-	}
-	function setValueList($list){
-		$this->value_list = $list;
-		return $this;
-	}
-	function loadPOST(){
-		$data=$_POST[$this->name];
-		if(is_array($data))$data=join(',',$data);
-		$gpc = get_magic_quotes_gpc();
-		if ($gpc){
-			if(isset($_POST[$this->name]))$this->set(stripslashes($data));
-		} else {
-			if(isset($_POST[$this->name]))$this->set($data);
-		}
-	}
-}
-class Form_Field_Dropdown extends Form_Field_ValueList {
-    public $empty_value='';
-
-    function emptyValue($v){
-        $this->empty_value=$v;
-        return $this;
-    }
-	function validate(){
-		if(!$this->value)return parent::validate();
-        $this->getValueList(); //otherwise not preloaded?
-		if(!isset($this->value_list[$this->value])){
-			/*
-			   if($this->api->isAjaxOutput()){
-			   $this->ajax()->displayAlert($this->short_name.": This is not one of the offered values")
-			   ->execute();
-			   }
-			 */
-			$this->form->errors[$this->short_name]="This is not one of the offered values";
-		}
-		return parent::validate();
-	}
-	function getInput($attr=array()){
-		$output=$this->getTag('select',array_merge(array(
-						'name'=>$this->name,
-						'id'=>$this->name,
-						),
-					$attr,
-					$this->attr)
-				);
-
-        foreach($this->getValueList() as $value=>$descr){
-            // Check if a separator is not needed identified with _separator<
-            $output.=
-                $this->getOption($value)
-                .htmlspecialchars($descr)
-                .$this->getTag('/option');
-        }
-		$output.=$this->getTag('/select');
-		return $output;
-	}
-	function getOption($value){
-		return $this->getTag('option',array(
-					'value'=>$value,
-					'selected'=>$value == $this->value
-					));
-	}
-}
-class Form_Field_CheckboxList extends Form_Field_ValueList {
-	/*
-	 * This field will create 2 column of checkbox+labels from defived value
-	 * list. You may check as many as you like and when you save their ID
-	 * values will be stored coma-separated in varchar type field.
-	 *
-	 $f->addField('CheckboxList','producers','Producers')->setValueList(array(
-	 1=>'Mr John',
-	 2=>'Piter ',
-	 3=>'Michail Gershwin',
-	 4=>'Bread and butter',
-	 5=>'Alex',
-	 6=>'Benjamin',
-	 7=>'Rhino',
-	 ));
-
-	 */
-
-	var $columns=2;
-	function validate(){
-		return true;
-	}
-	function getInput($attr=array()){
-		$output='<table class="atk-checkboxlist" border=0 id="'.$this->name.'"><tbody>';
-		$column=0;
-		$current_values=explode(',',$this->value);
-		$i=0;//Skai
-		foreach($this->getValueList() as $value=>$descr){
-			if($column==0){
-				$output.="<tr><td align=\"left\">";
-			}else{
-				$output.="</td><td align=\"left\">";
-			}
-
-			$output.=
-				$this->getTag('input',array(
-							'type'=>'checkbox',
-							'value'=>$value,
-							'name'=>$this->name.'['.$i++.']',//Skai
-							'checked'=>in_array($value,$current_values)
-							)).htmlspecialchars($descr);
-			$column++;
-			if($column==$this->columns){
-				$output.="</td></tr>";
-				$column=0;
-			}
-		}
-		$output.="</tbody></table>";
-		return $output;
-	}
-
-	function loadPOST(){
-		$data=$_POST[$this->name];
-		if(is_array($data))
-			$data=join(',',$data);
-		else
-			$data='';
-
-		$gpc = get_magic_quotes_gpc();
-		if ($gpc){
-			$this->set(stripslashes($data));
-		} else {
-			$this->set($data);
-		}
-	}
-}
-
-class Form_Field_Radio extends Form_Field_ValueList {
-	function validate(){
-		if(!isset($this->value_list[$this->value])){
-			/*
-			   if($this->api->isAjaxOutput()){
-			   echo $this->ajax()->displayAlert($this->short_name.":"."This is not one of offered values")->execute();
-			   }
-			 */
-			$this->displayFieldError("This is not one of offered values");
-		}
-		return parent::validate();
-	}
-	function getInput($attr=array()){
-		$output = '<div id="'.$this->name.'" class="atk-form-options">';
-		foreach($this->getValueList() as $value=>$descr){
-			$output.=
-				"<div>".$this->getTag('input',
-						array_merge(
-							array(
-								'id'=>$this->name.'_'.$value,
-								'name'=>$this->name,
-								'type'=>'radio',
-								'value'=>$value,
-								'checked'=>$value == $this->value
-							     ),
-							$this->attr,
-							$attr
-							))
-				."<label for='".$this->name.'_'.$value."'>".htmlspecialchars($descr)."</label></div>";
-		}
-		$output .= '</div>';
-		return $output;
-	}
-}

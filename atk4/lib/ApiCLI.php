@@ -46,6 +46,12 @@ class ApiCLI extends AbstractView {
      * how your application works, but slightly improving performance */
     /**/public $pr;
 
+    /** Maximum length of the name arguments (for SUHOSIN) */
+    public $max_name_length=60;
+
+    /** Contains list of hashes which used for name shortening */
+    public $unique_hashes=array();
+
     // {{{ Start-up of application
     /** Initializes properties of the application. Redefine init() instead of this */
     function __construct($realm=null){
@@ -56,8 +62,6 @@ class ApiCLI extends AbstractView {
 
         // Profiler is a class for benchmarking your application. All calls to pr 
         /**/$this->pr=new Dummy();
-
-        set_error_handler("error_handler");
 
         try {
             $this->add($this->pathfinder_class);
@@ -257,7 +261,7 @@ class ApiCLI extends AbstractView {
          * try { $api->getConfig($path); } catch ExceptionNotConfigured($e) { $var_is_set=false; };
          */
         if(is_null($this->config)){
-            $this->readConfig('../config.php');
+            $this->readConfig('config-default.php');
             $this->readConfig();
         }
         $parts = explode('/',$path);
@@ -266,7 +270,7 @@ class ApiCLI extends AbstractView {
             if(!array_key_exists($part,$current_position)){
                 if($default_value!==undefined)return $default_value;
                 throw $this->exception("Configuration parameter is missing in config.php",'NotConfigured')
-                    ->addMoreInfo("missing_line"," \$config['".join("']['",explode('/',$path))."']");
+                    ->addMoreInfo("missign_line"," \$config['".join("']['",explode('/',$path))."']");
             }else{
                 $current_position = $current_position[$part];
             }

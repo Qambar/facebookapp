@@ -105,7 +105,8 @@ class Form_Basic extends View {
         }
         $this->template_chunks['form']->del('Content');
         $this->template_chunks['form']->del('form_buttons');
-        $this->template_chunks['form']->set('form_name',$this->name);
+        $this->template_chunks['form']->set('form_name',$this->name.'_form');
+
         return $this;
     }
 
@@ -153,6 +154,10 @@ class Form_Basic extends View {
     function addField($type,$name,$caption=null,$attr=null){
         if($caption===null)$caption=ucwords(str_replace('_',' ',$name));
 
+        switch(strtolower($type)){
+            case'dropdown':$type='DropDown';break;
+            case'line':$type='Line';break;
+        }
         $class=$type;
         if(is_string($class)&&substr($class,0,strlen('Form_Field_'))!='Form_Field_'){
             $class=preg_replace('|^(.*/)?(.*)$|','\1Form_Field_\2',$class);
@@ -270,12 +275,16 @@ class Form_Basic extends View {
 
         return $submit;
     }
-    function addButton($label){
-        // Now add the regular button first
-        $name=preg_replace('/[^a-zA-Z0-9_-]/','',$label);
-        if(!$name)$name=null;
-        return $this->add('Button',$name,'form_buttons')
+    function addButton($label='Button',$name=null,$color=null){
+        if(!$name)$name=str_replace(' ','_',$label);
+        $name = preg_replace('/[^a-zA-Z0-9_-]/','', isset($name)?$name:$label);
+
+        $button = $this->add('Button',$name,'form_buttons')
             ->setLabel($label);
+        if (!is_null($color))
+            $button->setColor($color);
+
+       return $button;
     }
 
     function setConditionFromGET($field='id',$get_field=null){
@@ -340,12 +349,13 @@ class Form_Basic extends View {
         // On Windows platform mod_rewrite is lowercasing all the urls.
         if($_GET['submit']!=$this->name)return;
         if(!is_null($this->bail_out))return $this->bail_out;
-        $this->hook('loadPOST');
-        $this->hook('validate');
 
-        //TODO: handle errors properly
-        if(!empty($this->errors))return false;
+        $this->hook('loadPOST');
         try{
+            $this->hook('validate');
+
+            if(!empty($this->errors))return false;
+            
             if(($output=$this->hook('submit',array($this)))){
                 /* checking if anything usefull in output */
                 if(is_array($output)){
@@ -366,14 +376,14 @@ class Form_Basic extends View {
                 if($has_output)$this->js(null,$output)->execute();
             }
         }catch (BaseException $e){
-            if($e instanceof Exception_ForUser){
-                $this->js()->univ()->alert($e->getMessage())->execute();
-            }
             if($e instanceof Exception_ValidityCheck){
                 $f=$e->getField();
                 if($f && is_string($f) && $fld=$this->hasElement($f)){
                     $fld->displayFieldError($e->getMessage());
                 } else $this->js()->univ()->alert($e->getMessage().' in undefined field')->execute();
+            }
+            if($e instanceof Exception_ForUser){
+                $this->js()->univ()->alert($e->getMessage())->execute();
             }
             throw $e;
         }

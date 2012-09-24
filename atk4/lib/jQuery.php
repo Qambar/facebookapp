@@ -29,6 +29,11 @@
  */
 class jQuery extends AbstractController {
     private $chains=0;
+
+    public $included=array();
+
+    public $chain_class='jQuery_Chain';
+
     function init(){
         parent::init();
 
@@ -53,6 +58,8 @@ class jQuery extends AbstractController {
         return $this->addStaticInclude($file,$ext);
     }
     function addStaticInclude($file,$ext='.js'){
+        if(@$this->included['js-'.$file.$ext]++)return;
+
         if(substr($file,0,4)!='http'){
             $url=$this->api->locateURL('js',$file.$ext);
         }else $url=$file;
@@ -67,6 +74,7 @@ class jQuery extends AbstractController {
     }
     function addStaticStylesheet($file,$ext='.css',$locate='css'){
         //$file=$this->api->locateURL('css',$file.$ext);
+        if(@$this->included[$locate.'-'.$file.$ext]++)return;
 
         $this->api->template->appendHTML('js_include',
                 '<link type="text/css" href="'.$this->api->locateURL($locate,$file.$ext).'" rel="stylesheet" />'."\n");
@@ -81,7 +89,7 @@ class jQuery extends AbstractController {
     /* [private] use $object->js() instead */
     function chain($object){
         if(!is_object($object))throw new BaseException("Specify \$this as argument if you call chain()");
-        return $object->add('jQuery_Chain');
+        return $object->add($this->chain_class);
     }
     /* [private] When partial render is done, this function includes JS for rendered region */
     function cutRender(){

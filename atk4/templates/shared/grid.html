@@ -1,15 +1,15 @@
 <?$Misc?>
-<div id="<?$_name?>" class="atk-grid">
+<div id="<?$_name?>" class="atk-grid <?$class?>">
   <div class="atk-grid-panel">
     <?quick_search?><?/?>
-    <div class="atk-buttons"><?grid_buttons?><?/?></div>
+    <div class="atk-buttons"><?grid_buttons?>&nbsp;<?/?></div>
   </div>
   <table width="<?table_width?>100%<?/?>">
     <?header?>
     <thead class="ui-widget-header"><tr>
         <?cols?>
         <?col?>
-        <th class="ui-widget-header" nowrap	<?$thparam?>><?sort?><i	style="float: left" class="ui-icon <?$sorticon?>"></i><a href="<?$sortlink?>"><?/sort?><?descr?>Customer<?/?><?sort_del?></a><?/?></th>
+        <th id="<?$sortid?>" class="ui-widget-header" nowrap	<?$thparam?>><?sort?><i	style="float: left" class="ui-icon <?$sorticon?>"></i><?/?><?descr?>Customer<?/?></th>
         <?/col?>
         <?/cols?>
     </tr></thead>

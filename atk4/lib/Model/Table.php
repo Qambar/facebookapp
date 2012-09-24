@@ -53,8 +53,6 @@ class Model_Table extends Model {
 
     public $debug=false;
 
-    public $actual_fields=false;// Array of fields which will be used in further select operations. If not defined, all fields will be used.
-
     // {{{ Basic Functionality, query initialization and actual field handling
    
     /** Initialization of ID field, which must always be defined */
@@ -103,6 +101,7 @@ class Model_Table extends Model {
             $this->dsql->bt($this->table_alias?:$this->table).'.'.
             $this->dsql->bt($this->id_field))
             ;
+        $this->dsql->id_field = $this->id_field;
     }
     /** Use this instead of accessing dsql directly. This will initialize $dsql property if it does not exist yet */
     function _dsql(){
@@ -110,7 +109,9 @@ class Model_Table extends Model {
         return $this->dsql;
     }
     function __clone(){
-        $this->dsql=clone $this->dsql;
+        if (is_object($this->dsql)){
+            $this->dsql=clone $this->dsql;
+        }
     }
     /** Produces a close of Dynamic SQL object configured with table, conditions and joins of this model. 
      * Use for statements you are going to execute manually. */
@@ -121,31 +122,6 @@ class Model_Table extends Model {
     function debug(){
         $this->debug=true;
         if($this->dsql)$this->dsql->debug();
-        return $this;
-    }
-    /**
-     * Returs list of fields which belong to specific group. You can add fields into groups when you
-     * define them and it can be used by the front-end to determine which fields needs to be displayed.
-     * 
-     * If no group is specified, then all non-system fields are displayed for backwards compatibility.
-     */
-    function getActualFields($group=undefined){
-        if($group===undefined && $this->actual_fields)return $this->actual_fields;
-        $fields=array();
-        foreach($this->elements as $el)if($el instanceof Field){
-            if($el->hidden())continue;
-            if($group===undefined || $el->group()==$group ||
-                ($group=='visible' && $el->visible()) ||
-                ($group=='editable' && $el->editable())
-            ){
-                $fields[]=$el->short_name;
-            }
-        }
-        return $fields;
-    }
-    /** Default set of fields which will be included into further queries */
-    function setActualFields(array $fields){
-        $this->actual_fields=$fields;
         return $this;
     }
     /** Completes initialization of dsql() by adding fields and expressions. */
@@ -313,9 +289,13 @@ class Model_Table extends Model {
             $field=$this->getElement($field);
         }
 
+        if($field instanceof Field_Reference || $field instanceof Field_Expression){
+            $this->_dsql()->order($field->getExpr());
+            return $this;
+        }
 
         if($field->relation){
-            $this->_dsql()->order($field->relation->short_name.'.'.$field->short_name,$desc);
+            $this->_dsql()->order($field->relation->short_name.'.'.($field->actual_field?:$field->short_name),$desc);
         }elseif($this->relations){
             $this->_dsql()->order(($this->table_alias?:$this->table).'.'.$field->short_name,$desc);
         }else{
@@ -332,27 +312,35 @@ class Model_Table extends Model {
 
     // {{{ Iterator support 
 
+    /* False: finished iterating. True, reset not yet fetched. Object=DSQL */
     protected $_iterating=false;
     function rewind(){
+        $this->_iterating=true;
+    }
+    function _preexec(){
         $this->_iterating=$this->selectQuery();
-        $this->_iterating->stmt=null;
         $this->hook('beforeLoad',array($this->_iterating));
-        $this->next();
+        return $this->_iterating;
     }
     function next(){
+        if($this->_iterating===true){
+            $this->_iterating=$this->selectQuery();
+            $this->hook('beforeLoad',array($this->_iterating));
+        }
         $this->_iterating->next();
-
-
         $this->data=$this->_iterating->current();
 
-        if($this->data===false)return $this->unload();
+        if($this->data===false){
+            $this->unload();
+            $this->_iterating=false;
+            return;
+        }
 
 
         $this->id=@$this->data[$this->id_field];
         $this->dirty=array();
 
         $this->hook('afterLoad');
-
     }
     function current(){
         return $this->get();
@@ -361,9 +349,14 @@ class Model_Table extends Model {
         return $this->id;
     }
     function valid(){
+        /*
         if(!$this->_iterating){
             $this->next();
             $this->_iterating=$this->selectQuery();
+        }
+        */
+        if($this->_iterating===true){
+            $this->next();
         }
         return $this->loaded();
     }
@@ -582,8 +575,8 @@ class Model_Table extends Model {
         if($this->_save_as)$this->unload();
         $o=$this->_save_as?:$this;
 
-        $res=$o->load($id);
-        if(!$res)throw $this->exception('Problem');
+        $res=$o->tryLoad($id);
+        if(!$res->loaded())throw $this->exception('Saved model did not match conditions. Save aborted.');
         return $res;
     }
     /** Internal function which performs modification of existing data. Use save() instead. OK to override. Will return new 

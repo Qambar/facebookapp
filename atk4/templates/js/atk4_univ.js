@@ -5,7 +5,7 @@
 //
 
 ;
-$||console.error("jQuery must be loaded");
+jQuery||console.error("jQuery must be loaded");
 (function($){
 
 
@@ -145,7 +145,6 @@ $.each({
 	},
 	reloadArgs: function(url,key,value){
 		var u=$.atk4.addArgument(url,key+'='+value);
-		console.log(url);
 		this.jquery.atk4_load(u);
 	},
 	reload: function(url,arg,fn){
@@ -242,7 +241,7 @@ dialogPrepare: function(options){
  * This function creates a new dialog and makes sure other dialog-related functions will
  * work perfectly with it
  */
-	var dialog=$('<div class="dialog dialog_autosize" title="Untitled">Loading<div></div></div>').appendTo('body');
+    var dialog=$('<div class="dialog dialog_autosize" title="Untitled"><div class="loading centred"><i></i><i></i></div><div></div></div>').appendTo('body');
 	if(options.noAutoSizeHack)dialog.removeClass('dialog_autosize');
 	dialog.dialog(options);
 	if(options.customClass){
@@ -288,7 +287,11 @@ dialogBox: function(options){
 				$(this).dialog('close');
 			}
 		},
+		open: function(){
+			$("body").css({ overflow: 'hidden' });
+		},
 		close: function(){
+			$("body").css({ overflow: 'inherit' });
 			$(this).dialog('destroy');
 			$(this).remove();
 		}
@@ -478,6 +481,15 @@ numericField: function(){
 	this.jquery.bind('keyup change',function () {
 	var t= this.value.replace(/[^0-9\.-]/g,'');
 		if(t != this.value)this.value=t;
+	});
+},
+onKey: function(code,fx,modifier,modival){
+	this.jquery.bind('keydown',function(e){
+		if(e.which==code && (!modifier || e[modifier]==modival)){
+			e.preventDefault();
+			e.stopPropagation();
+			return fx();
+		}
 	});
 },
 disableEnter: function(){
@@ -734,4 +746,4 @@ $.fn.extend({
 		return u;
 	}
 });
-})($);
+})(jQuery);

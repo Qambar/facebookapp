@@ -177,13 +177,17 @@ class PathFinder extends AbstractController {
         if (!$file && $namespace){
             $file = $namespace;
             $namespace=null;
-        }
+        }else $class_name_nonn=$file;
         /**/$this->api->pr->next('pathfinder/loadClass/convertpath '.$class_name);
         // Include class file directly, do not rely on auto-load functionality
         if(!class_exists($class_name,false) && isset($this->api->pathfinder) && $this->api->pathfinder){
             $file = str_replace('_',DIRECTORY_SEPARATOR,$file).'.php';
             if($namespace){
-                $path=$this->api->locatePath('addons',$namespace.DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.$file);
+                if(substr($class_name_nonn,0,5)=='page_'){
+                	$path=$this->api->locatePath('addons',$namespace.DIRECTORY_SEPARATOR.$file);
+                }else{
+                	$path=$this->api->locatePath('addons',$namespace.DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.$file);
+                }
 
                 if(!is_readable($path)){
                     throw new PathFinder_Exception('addon',$path,$prefix);
@@ -251,7 +255,10 @@ class PathFinder_Location extends AbstractModel {
 			$this->setParent($this->owner->base_location);
 		}
 	}
-
+    function setRelativePath($path){
+        $this->relative_path = $path;
+        return $this;
+    }
 	function setParent($parent){
 		$this->parent_location=$parent;
 		return $this;
@@ -291,7 +298,7 @@ class PathFinder_Location extends AbstractModel {
 
 		$path='';
 		if($this->base_path)$path=$this->base_path;else
-			if($this->parent_location){
+            if($this->parent_location){
 				$path=$this->parent_location->getPath();
 				if(substr($path,-1)!='/')$path.='/';
 				$path.=$this->relative_path;

@@ -26,6 +26,9 @@ class ApiWeb extends ApiCLI {
     /** recorded time when execution has started */
     public $start_time=null;
 
+    private $_license_checksum=null;
+    private $_license='unlicensed'; 
+
     // {{{ Start-up 
     function __construct($realm=null,$skin='default'){
         $this->start_time=time()+microtime();
@@ -51,6 +54,9 @@ class ApiWeb extends ApiCLI {
         //$this->calculatePageName();
         $this->pm=$this->add('PageManager');
 
+        // Verify Licensing
+        $this->licenseCheck('atk4');
+
         // send headers, no caching
         $this->sendHeaders();
 
@@ -69,14 +75,15 @@ class ApiWeb extends ApiCLI {
     }
     /** Magic Quotes were a design error. Let's strip them if they are enabled */
     function cleanMagicQuotes(){
-
-        function stripslashes_array(&$array, $iterations=0) {
-            if ($iterations < 3){
-                foreach ($array as $key => $value){
-                    if (is_array($value)){
-                        stripslashes_array($array[$key], $iterations + 1);
-                    } else {
-                        $array[$key] = stripslashes($array[$key]);
+        if (!function_exists("stripslashes_array")){
+            function stripslashes_array(&$array, $iterations=0) {
+                if ($iterations < 3){
+                    foreach ($array as $key => $value){
+                        if (is_array($value)){
+                            stripslashes_array($array[$key], $iterations + 1);
+                        } else {
+                            $array[$key] = stripslashes($array[$key]);
+                        }
                     }
                 }
             }
@@ -111,17 +118,73 @@ class ApiWeb extends ApiCLI {
     function _showExecutionTimeJS(){
         echo "\n\n/* Took ".number_format(time()+microtime()-$this->start_time,5).'s */';
     }
-    /** If version tag is defined in template, inserts current version of Agile Toolkit there. If newer verison is available, it will be reflected */
-    function upgradeChecker(){
-        // Checks for ATK upgrades and shows current version
-        if($this->template && $this->template->is_set('version')){
-            $this->add('UpgradeChecker',null,'version');
+    // }}}
+
+    // {{{ License checking function
+    /** This function will return type of the license used: agpl, single, multi */
+    final function license(){
+        return $this->_license;
+    }
+    /** This function will return installation signature. It is used by add-ons
+        when communicating with agiletoolkit.org to detect tampering with license system. */
+    final function license_checksum(){
+        return $this->_license_checksum;
+    }
+    final function licenseCheck($product){
+        /* An average Agile Toolkit developer can earn cost of Agile Toolkit in less than
+            3 work hours. Your honest purchase is really necessary to keep Agile Toolkit
+            development alive. Please do not tamper with licensing mechanisms. Thank you!
+            */
+        $id=$this->api->getConfig('license/'.$product.'/id',false);
+        if(!$id)return false;
+
+        $type=$this->api->getConfig('license/'.$product.'/type',false);
+
+        $data=$_SERVER['HTTP_HOST'].'|'.$id.'|'.$type;
+
+        if($type=='agpl'){
+            $data.='|'.$this->api->getConfig('license/'.$product.'/repo',false);
         }
+
+        $this->api->_license_checksum=md5($data);
+        if(!function_exists('openssl_get_publickey'))return false;
+
+        $cert=$this->api->getConfig('license/'.$product.'/public',
+            dirname(dirname(__FILE__)).DIRECTORY_SEPARATOR.'cert'.
+            DIRECTORY_SEPARATOR.'atk4.crt');
+
+        $signature=$this->api->getConfig('license/'.$product.'/certificate',false);
+        if(!$signature)return false;
+
+        $cert=openssl_get_publickey(file_get_contents($cert));
+        if(!$cert)return false;
+
+        $result = openssl_verify($data,base64_decode($signature),$cert);
+        openssl_free_key($cert);
+
+        if($result==1 && $product=='atk4'){
+            $this->_license=$type;
+            return true;   // certificate matched
+        }
+
+        return false;
+    }
+    /** If version tag is defined in template, inserts current version of Agile Toolkit there.
+        When newer verison is available, it will be displayed. Override this with empty function
+        to disable. */
+    function upgradeChecker(){
+
+        try{
+            if($this->template && $this->template->is_set('version')){
+                $this->add('licensor/UpgradeChecker',null,'version');
+            }
+        }catch(PathFinder_Exception $e){}
+
     }
     // }}}
 
     // {{{ Obsolete
-    /** @obsolete */
+    /** This method is called when exception was caught in the application */
     function caughtException($e){
         $this->hook('caught-exception',array($e));
         echo "<font color=red>",$e,"</font>";
@@ -209,7 +272,7 @@ class ApiWeb extends ApiCLI {
         }catch(Exception $e){
             if(!($e instanceof Exception_StopInit))
                 return $this->caughtException($e);
-            $this->caughtException($e);
+            //$this->caughtException($e);
         }
 
         try{

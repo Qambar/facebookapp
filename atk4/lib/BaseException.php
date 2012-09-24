@@ -35,7 +35,6 @@ class BaseException extends Exception {
     }
     function __construct($msg,$func=null,$shift=1,$code=0){
         parent::__construct($msg,$code);
-		
         $this->collectBasicData($func,$shift,$code);
     }
     function collectBasicData($func,$shift,$code){

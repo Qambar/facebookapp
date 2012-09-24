@@ -15,6 +15,7 @@ class Field extends AbstractModel {
     public $searchable=false;
     public $mandatory=false;
     public $defaultValue=null;
+    public $emptyText="Please, select";
     public $auto_track_element=true;
     public $listData=null;
     public $theModel=null;  // 
@@ -70,6 +71,7 @@ class Field extends AbstractModel {
     function defaultValue($t=undefined){ return $this->setterGetter('defaultValue',$t); }
     function visible($t=undefined){ return $this->setterGetter('visible',$t); }
     function listData($t=undefined){ return $this->setterGetter('listData',$t); }
+    function emptyText($t=undefined){ return $this->setterGetter('emptyText',$t); }
     function setModel($t=undefined){ return $this->setterGetter('theModel',$t); }
     function getModel(){ return $this->theModel; }
     function setValueList($t){ return $this->listData($t); }
@@ -128,6 +130,13 @@ class Field extends AbstractModel {
             list($junk,$yes_value)=each($this->listData);
             @list($junk,$no_value)=each($this->listData);
             if($no_value==null)$no_value='';
+            /* not to convert N to Y */
+            if ($yes_value == $value){
+                return $yes_value;
+            }
+            if ($no_value == $value){
+                return $no_value;
+            }
         }else{
             $yes_value=1;$no_value=0;
         }

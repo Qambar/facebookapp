@@ -36,7 +36,7 @@ class View_CRUD extends View {
     }
     function setController($controller){
         if($this->form){
-            $m=$this->form->setController($controller);
+            $this->form->setController($controller);
             $this->form->addSubmit('Save');
         }elseif($this->grid){
             $this->grid->setController($controller);
@@ -58,11 +58,11 @@ class View_CRUD extends View {
     function initComponents(){
         if($this->form){
             $m=$this->form->getModel();
-            if(($id=$_GET[$this->name])!='new' && $this->allow_edit){
+            if(($id=$_GET[$this->name])!='new'){
 				if(!$this->allow_edit)throw $this->exception('Editing not allowed');
-                $m->loadData($id);
+                $m->load($id);
             }
-			if(!$m->isInstanceLoaded() && !$this->allow_add)throw $this->exception('Adding not allowed');
+			if(!$m->loaded() && !$this->allow_add)throw $this->exception('Adding not allowed');
 
             $this->form->onSubmit(array($this,'formSubmit'));
 
@@ -77,9 +77,13 @@ class View_CRUD extends View {
         }
         return $this;
     }
-	function formSubmit($form){
-		$form->update();
-		$this->api->addHook('pre-render',array($this,'formSubmitSuccess'));
+    function formSubmit($form){
+        try {
+            $form->update();
+            $this->api->addHook('pre-render',array($this,'formSubmitSuccess'));
+        } catch (Exception_ValidityCheck $e){
+            $form->displayError($e->getField(), $e->getMessage());
+        }
 	}
 	function formSubmitSuccess(){
 		$this->form->js(null,$this->js()->trigger('reload'))->univ()->closeDialog()->execute();

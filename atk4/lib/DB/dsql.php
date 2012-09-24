@@ -51,6 +51,8 @@ class DB_dsql extends AbstractModel implements Iterator {
         'delete'=>"delete from  [table_noalias] [where]",
         'truncate'=>'truncate table [table_noalias]'
     );
+    /** required for non-id based tables */
+    public $id_field;
 
     // {{{ Generic stuff
     function _unique(&$array,$desired=null){
@@ -449,7 +451,7 @@ class DB_dsql extends AbstractModel implements Iterator {
     }
     function render_having(){
         if(!$this->args['having'])return;
-        return 'having '.join(' or ',$this->_render_where('having'));
+        return 'having '.join(' and ',$this->_render_where('having'));
     }
     // }}}
     // {{{ join()
@@ -931,6 +933,12 @@ class DB_dsql extends AbstractModel implements Iterator {
     // {{{ Iterator support 
     public $data=false;
     public $_iterating=false;
+    public $preexec=false;
+    function preexec(){
+        $this->execute();
+        $this->preexec=true;
+        return $this;
+    }
     function rewind(){
         if($this->_iterating){
             $this->stmt=null;
@@ -947,10 +955,13 @@ class DB_dsql extends AbstractModel implements Iterator {
         return $this->data;
     }
     function key(){
-        return $this->data['id'];
+        return $this->data[$this->id_field];
     }
     function valid(){
-        if(!$this->stmt)$this->data = $this->fetch();
+        if(!$this->stmt || $this->preexec){
+            $this->preexec=false;
+            $this->data = $this->fetch();
+        }
         return (boolean)$this->data;
     }
     // }}}
@@ -961,23 +972,27 @@ class DB_dsql extends AbstractModel implements Iterator {
         $this->debug=1;
         return $this;
     }
+    function getDebugQuery($r=null){
+        if(!$r)$r=$this->_render();
+        $d=$r;
+        $pp=array();
+        $d=preg_replace('/`([^`]*)`/','`<font color="black">\1</font>`',$d);
+        foreach(array_reverse($this->params) as $key=>$val){
+            if(is_string($val))$d=preg_replace('/'.$key.'([^_]|$)/','"<font color="green">'.htmlspecialchars(addslashes($val)).'</font>"\1',$d);
+            elseif(is_null($val))$d=preg_replace('/'.$key.'([^_]|$)/','<font color="black">NULL</font>\1',$d);
+            elseif(is_numeric($val))$d=preg_replace('/'.$key.'([^_]|$)/','<font color="red">'.$val.'</font>\1',$d);
+            else$d=preg_replace('/'.$key.'([^_]|$)/',$val.'\1',$d);
+
+            $pp[]=$key;
+        }
+        return "<font color='blue'>".$d."</font> <font color='gray'>[".join(', ',$pp)."]</font><br/>";
+    }
     /** Converts query into string format. This will contain parametric references */
     function render(){
         $this->params=$this->extra_params;
         $r=$this->_render();
         if($this->debug){
-            $d=$r;
-            $pp=array();
-            $d=preg_replace('/`([^`]*)`/','`<font color="black">\1</font>`',$d);
-            foreach(array_reverse($this->params) as $key=>$val){
-                if(is_string($val))$d=preg_replace('/'.$key.'([^_]|$)/','"<font color="green">'.htmlspecialchars(addslashes($val)).'</font>"\1',$d);
-                elseif(is_null($val))$d=preg_replace('/'.$key.'([^_]|$)/','<font color="black">NULL</font>\1',$d);
-                elseif(is_numeric($val))$d=preg_replace('/'.$key.'([^_]|$)/','<font color="red">'.$val.'</font>\1',$d);
-                else$d=preg_replace('/'.$key.'([^_]|$)/',$val.'\1',$d);
-
-                $pp[]=$key;
-            }
-            echo "<font color='blue'>".$d."</font> <font color='gray'>[".join(', ',$pp)."]</font><br/>";
+            echo $this->getDebugQuery($r);
         }
         return $r;
     }
